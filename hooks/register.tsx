@@ -6,7 +6,6 @@ import type { Hunk } from '../types'
 const COMMAND = 'collapse-edits'
 const SOURCE_LIMIT = 9000
 const LINE_LIMIT = 400
-const SEPARATOR = '⋮'
 
 const isCollapsing = atom(
   { plugin: 'collapse-edits', key: 'isCollapsing' } as const,
@@ -24,9 +23,6 @@ type Change = {
 type Line = { text: string; hunk: number; oldNo: number; newNo: number }
 
 type Body = { lines: Line[]; omitted: number; isDiff: boolean }
-
-// 畫面上的一列：一行代碼，或 diff 兩個段落之間的分隔列（null）
-type Item = Line | null
 
 const isHunk = (value: unknown): value is Hunk => {
   if (typeof value !== 'object' || value === null) {
@@ -125,17 +121,7 @@ const toBody = (change: Change): Body => {
   return { lines, omitted, isDiff: true }
 }
 
-// Code 在 diff 的每兩個段落之間多畫一列分隔，列號要把它算進去
-const toItems = (lines: Line[]) =>
-  lines.flatMap((line, index): Item[] => {
-    const before = lines[index - 1]
-
-    return before !== undefined && before.hunk !== line.hunk
-      ? [null, line]
-      : [line]
-  })
-
-// 一段連續的列重新組成 unified diff；從 hunk 中間切開時標頭依切點重算
+// 留下的列重新組成 unified diff；hunk 被截短時標頭依實際行數重算
 const toDiff = (lines: Line[]) => {
   const parts: string[] = []
   let from = 0
@@ -237,62 +223,12 @@ export const register: Register = on => {
     }
 
     const body = toBody(change)
-    const items = toItems(body.lines)
-    // 頂端一列、收合鈕一列，有省略時再多一列；收合鈕不論在中間或底部都只佔一列，
-    // 所以總列數固定，才能拿 onScreen 的列號對回代碼行
-    const rows = items.length + 2 + (body.omitted > 0 ? 1 : 0)
-    // 區塊尾端被畫面下緣截掉時，收合鈕改插在畫面內的倒數第二列：
-    // 最後一列疊著引擎自己的捲動鈕那一層，點擊送不到。
-    // 列數對不上（例如長行折行）就不插，留在底部
+    // 區塊尾端被畫面下緣截掉時，在畫面內的倒數第二列疊畫一顆收合鈕，不佔列：
+    // 最後一列疊著引擎自己的捲動鈕那一層，點擊送不到
     const floatAt =
-      onScreen &&
-      onScreen.of === rows &&
-      onScreen.last >= 3 &&
-      onScreen.last < rows - 1
+      onScreen && onScreen.last >= 2 && onScreen.last < onScreen.of - 1
         ? onScreen.last - 1
         : null
-    // 暫時的診斷紀錄：確認引擎回報的列數與推算是否一致
-    $.ui.log(
-      `rows=${rows} lines=${body.lines.length} floatAt=${floatAt} onScreen=${JSON.stringify(onScreen)}`,
-      { to: 'debug' },
-    )
-    const split =
-      floatAt === null ? items.length : Math.min(floatAt - 1, items.length)
-
-    const code = (key: string, lines: Line[]) => {
-      const first = lines[0]
-
-      if (first === undefined) {
-        return null
-      }
-
-      return body.isDiff ? (
-        <Code key={key} source={toDiff(lines)} format="diff" path={change.path} />
-      ) : (
-        <Code
-          key={key}
-          source={lines.map(line => line.text).join('\n')}
-          path={change.path}
-          startLine={first.newNo}
-        />
-      )
-    }
-
-    // Code 只在自己內部的段落之間畫分隔列；切點落在分隔列上時由這裡補畫，
-    // 總列數才不會隨切點變動
-    const piece = (key: string, part: Item[]) => {
-      const lines = part.filter((item): item is Line => item !== null)
-
-      return (
-        <Box flexDirection="column">
-          {part[0] === null && <Text dimColor>{SEPARATOR}</Text>}
-          {code(key, lines)}
-          {part.length > 1 && part[part.length - 1] === null && (
-            <Text dimColor>{SEPARATOR}</Text>
-          )}
-        </Box>
-      )
-    }
 
     return (
       <Box flexDirection="column">
@@ -303,24 +239,36 @@ export const register: Register = on => {
           label={`▾ ${summary}（點擊收合）`}
           onPress={toggle}
         />
-        {piece('body', items.slice(0, split))}
-        {floatAt !== null && (
-          <Box justifyContent="flex-end">
-            <Button key="float" label="▴ 收合" onPress={toggle} />
-          </Box>
-        )}
-        {piece('rest', items.slice(split))}
+        {body.lines.length > 0 &&
+          (body.isDiff ? (
+            <Code
+              key="body"
+              source={toDiff(body.lines)}
+              format="diff"
+              path={change.path}
+            />
+          ) : (
+            <Code
+              key="body"
+              source={body.lines.map(line => line.text).join('\n')}
+              path={change.path}
+              startLine={1}
+            />
+          ))}
         {body.omitted > 0 && (
           <Text dimColor>… 另有 {body.omitted} 行未顯示</Text>
         )}
-        {floatAt === null && (
-          <Button
-            key="fold"
-            plain
-            dimColor
-            label={`▴ ${summary}（點擊收合）`}
-            onPress={toggle}
-          />
+        <Button
+          key="fold"
+          plain
+          dimColor
+          label={`▴ ${summary}（點擊收合）`}
+          onPress={toggle}
+        />
+        {floatAt !== null && (
+          <Box position="absolute" top={floatAt} right={0}>
+            <Button key="float" label="▴ 收合" onPress={toggle} />
+          </Box>
         )}
       </Box>
     )
