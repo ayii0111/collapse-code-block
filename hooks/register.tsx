@@ -216,16 +216,23 @@ export const register: Register = on => {
     const summary = summarize(change)
     const { Box, Button, Code, Text } = $.ui.resolve(e)
 
-    // 只有方括號那顆 Button 可點；Button 的文字只有單色，增減數字另用 Text 上色
+    // 只有方括號那顆 Button 可點；Button 的文字只有單色，增減數字另用 Text 上色。
+    // 右邊整段是同一個 Text、不用 dimColor：獨立的暗色 Text 在游標下會變色，像個按鈕
     const bar = (key: string, label: string) => (
       <Box gap={1}>
         <Button key={key} plain label={label} onPress={toggle} />
-        {summary === null && <Text dimColor>無差異</Text>}
-        {summary !== null && <Text color={ADDED}>+{summary.added}</Text>}
-        {summary !== null && summary.removed !== null && (
-          <Text color={REMOVED}>−{summary.removed}</Text>
+        {summary === null ? (
+          <Text>無差異</Text>
+        ) : (
+          <Text>
+            <Text color={ADDED}>+{summary.added}</Text>
+            {summary.removed !== null && ' '}
+            {summary.removed !== null && (
+              <Text color={REMOVED}>−{summary.removed}</Text>
+            )}
+            {' 行'}
+          </Text>
         )}
-        {summary !== null && <Text dimColor>行</Text>}
       </Box>
     )
 

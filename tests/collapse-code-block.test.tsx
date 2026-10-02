@@ -70,13 +70,17 @@ test('Edit 的結果預設收合成一行，按下後展開 diff，再按收回'
 
     // 收合行：[▸ Expand] +2（綠） −1（紅） 行，只有方括號那顆可點
     expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▸ Expand]')
-    expect((await ui.find({ type: 'Text', text: '+2' }))?.props.color).toBe(
+    expect((await ui.find({ type: 'Text', text: /^\+2$/ }))?.props.color).toBe(
       'green',
     )
-    expect((await ui.find({ type: 'Text', text: '−1' }))?.props.color).toBe(
+    expect((await ui.find({ type: 'Text', text: /^−1$/ }))?.props.color).toBe(
       'red',
     )
-    expect(await ui.find({ type: 'Text', text: '行' })).toBeDefined()
+    // 數字和「行」在同一個 Text 裡，沒有獨立的暗色 Text
+    expect((await ui.find({ type: 'Text', text: /行/ }))?.text).toBe('+2 −1 行')
+    expect(
+      (await ui.findAll({ type: 'Text' })).filter(one => one.props.dimColor),
+    ).toHaveLength(0)
     expect(await ui.find({ type: 'Code' })).toBeUndefined()
 
     await ui.press({ key: 'toggle' })
@@ -207,7 +211,7 @@ test('Write 新檔沒有 patch 時，展開顯示檔案內容', async $ => {
 
     // 新檔整份都算新增：只有綠色的 +2，沒有紅色的刪除數
     expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▸ Expand]')
-    expect((await ui.find({ type: 'Text', text: '+2' }))?.props.color).toBe(
+    expect((await ui.find({ type: 'Text', text: /^\+2$/ }))?.props.color).toBe(
       'green',
     )
     expect(await ui.find({ type: 'Text', text: /−/ })).toBeUndefined()
