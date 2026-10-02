@@ -1,0 +1,164 @@
+import type { On } from 'claude-code'
+import { expect, test } from 'claude-code/testing'
+
+const PLUGIN = 'collapse-edits'
+
+const EDIT = {
+  tool_use_id: 'toolu_edit',
+  tool: 'Edit',
+  isErrored: false,
+  output: {
+    filePath: '/tmp/demo.ts',
+    oldString: 'const a = 1',
+    newString: 'const a = 2\nconst b = 3',
+    originalFile: 'const a = 1\n',
+    structuredPatch: [
+      {
+        oldStart: 1,
+        oldLines: 1,
+        newStart: 1,
+        newLines: 2,
+        lines: ['-const a = 1', '+const a = 2', '+const b = 3'],
+      },
+    ],
+    userModified: false,
+    replaceAll: false,
+  },
+}
+
+const WRITE = {
+  tool_use_id: 'toolu_write',
+  tool: 'Write',
+  isErrored: false,
+  output: {
+    type: 'create',
+    filePath: '/tmp/new.ts',
+    content: 'export const x = 1\nexport const y = 2',
+    structuredPatch: [],
+    originalFile: null,
+  },
+}
+
+const SURFACES = ['terminal', 'desktop'] as const
+const ENGINE = '引擎原本的繪製'
+
+// 測試裡沒有引擎自己的繪製，mod 交回 next(e) 時由這個 hook 代答
+const engine = (on: On) => {
+  on('ui.render', { component: 'ToolResult' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+
+    return <Text>{ENGINE}</Text>
+  })
+}
+
+const run = (args: string) => ({
+  command: PLUGIN,
+  args,
+  origin: { kind: 'composer' } as const,
+  presentation: { isFullscreen: true, columns: 120 },
+})
+
+test('Edit 的結果預設收合成一行，按下後展開 diff，再按收回', async $ => {
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({
+      plugin: PLUGIN,
+      surface,
+      component: 'ToolResult',
+      props: EDIT,
+      requestId: `${EDIT.tool_use_id}-${surface}`,
+    })
+
+    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe(
+      '▸ +2 −1 行（點擊展開）',
+    )
+    expect(await ui.find({ type: 'Code' })).toBeUndefined()
+
+    await ui.press({ key: 'toggle' })
+
+    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe(
+      '▾ +2 −1 行（點擊收合）',
+    )
+    expect((await ui.find({ type: 'Code' }))?.props).toMatchObject({
+      format: 'diff',
+      source: '@@ -1,1 +1,2 @@\n-const a = 1\n+const a = 2\n+const b = 3',
+    })
+
+    await ui.press({ key: 'toggle' })
+
+    expect(await ui.find({ type: 'Code' })).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
+test('Write 新檔沒有 patch 時，展開顯示檔案內容', async $ => {
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({
+      plugin: PLUGIN,
+      surface,
+      component: 'ToolResult',
+      props: WRITE,
+      requestId: `${WRITE.tool_use_id}-${surface}`,
+    })
+
+    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe(
+      '▸ 2 行（點擊展開）',
+    )
+
+    await ui.press({ key: 'toggle' })
+
+    expect((await ui.find({ type: 'Code' }))?.props).toMatchObject({
+      source: WRITE.output.content,
+      path: '/tmp/new.ts',
+    })
+    await ui.unmount()
+  }
+})
+
+test('其他工具、出錯的呼叫不接管', async ($, on) => {
+  engine(on)
+
+  for (const props of [
+    { ...EDIT, tool: 'Bash', output: { stdout: 'ok', stderr: '' } },
+    { ...EDIT, isErrored: true, output: 'String to replace not found' },
+  ]) {
+    const ui = await $.ui.mount({
+      plugin: PLUGIN,
+      surface: 'terminal',
+      component: 'ToolResult',
+      props,
+    })
+
+    expect(await ui.find({ key: 'toggle' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: ENGINE })).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('/collapse-edits off 之後照原樣顯示，on 之後恢復收合', async ($, on) => {
+  engine(on)
+
+  const off = await $.command.run(run('off'))
+  expect(off?.text).toContain('已停用')
+
+  const plain = await $.ui.mount({
+    plugin: PLUGIN,
+    surface: 'terminal',
+    component: 'ToolResult',
+    props: EDIT,
+  })
+  expect(await plain.find({ key: 'toggle' })).toBeUndefined()
+  expect(await plain.find({ type: 'Text', text: ENGINE })).toBeDefined()
+  await plain.unmount()
+
+  const back = await $.command.run(run('on'))
+  expect(back?.text).toContain('預設收合')
+
+  const folded = await $.ui.mount({
+    plugin: PLUGIN,
+    surface: 'terminal',
+    component: 'ToolResult',
+    props: EDIT,
+  })
+  expect(await folded.find({ key: 'toggle' })).toBeDefined()
+  await folded.unmount()
+})

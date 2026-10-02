@@ -1,0 +1,6 @@
+{
+  "name": "collapse-edits",
+  "version": "0.1.0",
+  "description": "把 Edit/Write 工具的 diff 收合成一行，點擊或用 /collapse-edits 切換",
+  "types": "./types/index.d.ts"
+}
