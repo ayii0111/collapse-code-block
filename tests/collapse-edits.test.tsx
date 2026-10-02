@@ -90,6 +90,124 @@ test('Edit 的結果預設收合成一行，按下後展開 diff，再按收回'
   }
 })
 
+test('展開後底部有收合鈕，按下收回', async $ => {
+  for (const surface of SURFACES) {
+    const ui = await $.ui.mount({
+      plugin: PLUGIN,
+      surface,
+      component: 'ToolResult',
+      props: EDIT,
+      requestId: `fold-${surface}`,
+    })
+
+    expect(await ui.find({ key: 'fold' })).toBeUndefined()
+    await ui.press({ key: 'toggle' })
+    expect(await ui.find({ key: 'fold' })).toBeDefined()
+    expect(await ui.find({ key: 'float' })).toBeUndefined()
+
+    await ui.press({ key: 'fold' })
+
+    expect(await ui.find({ type: 'Code' })).toBeUndefined()
+    await ui.unmount()
+  }
+})
+
+const LONG = {
+  ...WRITE,
+  output: {
+    ...WRITE.output,
+    // 檔尾換行不算一行
+    content: `${Array.from({ length: 40 }, (_, i) => `line ${i + 1}`).join('\n')}\n`,
+  },
+}
+
+const TWO = {
+  ...EDIT,
+  output: {
+    ...EDIT.output,
+    structuredPatch: [
+      { oldStart: 1, oldLines: 1, newStart: 1, newLines: 1, lines: ['-a', '+A'] },
+      { oldStart: 9, oldLines: 1, newStart: 9, newLines: 1, lines: ['-b', '+B'] },
+    ],
+  },
+}
+
+type Shown ={ first: number; last: number; of: number }
+
+test('尾端被畫面截掉時收合鈕插在畫面內倒數第二列，尾端入畫面後回到底部', async $ => {
+  const open = async (id: string, props: object, onScreen: Shown | null) => {
+    const ui = await $.ui.mount({
+      plugin: PLUGIN,
+      surface: 'terminal',
+      component: 'ToolResult',
+      props: { ...(props as typeof LONG), onScreen },
+      requestId: id,
+    })
+    await ui.press({ key: 'toggle' })
+
+    return ui
+  }
+
+  // 40 行 + 頂端一列 + 收合鈕一列 = 42 列；畫面最後一列是第 13 列，
+  // 收合鈕插在倒數第二列（第 12 列），靠右
+  const cut = await open('cut', LONG, { first: 0, last: 13, of: 42 })
+  const row = (await cut.findAll({ type: 'Box' })).find(
+    box => box.props.justifyContent === 'flex-end',
+  )
+  expect(row?.children).toHaveLength(1)
+  const pieces = await cut.findAll({ type: 'Code' })
+  expect(pieces).toHaveLength(2)
+  expect(pieces[0]?.props).toMatchObject({
+    startLine: 1,
+    source: Array.from({ length: 11 }, (_, i) => `line ${i + 1}`).join('\n'),
+  })
+  expect(pieces[1]?.props).toMatchObject({ startLine: 12 })
+  expect(await cut.find({ key: 'float' })).toBeDefined()
+  expect(await cut.find({ key: 'fold' })).toBeUndefined()
+  await cut.press({ key: 'float' })
+  expect(await cut.find({ type: 'Code' })).toBeUndefined()
+  await cut.unmount()
+
+  // 兩段 diff 之間有一列分隔：2 行 + 分隔 + 2 行，加頭尾共 7 列。
+  // 切點落在分隔列前後時由 mod 補畫分隔列，總列數不變
+  for (const [last, sources] of [
+    [4, ['@@ -1,1 +1,1 @@\n-a\n+A', '@@ -9,1 +9,1 @@\n-b\n+B']],
+    [5, ['@@ -1,1 +1,1 @@\n-a\n+A', '@@ -9,1 +9,1 @@\n-b\n+B']],
+    [3, ['@@ -1,1 +1,0 @@\n-a', '@@ -2,0 +1,1 @@\n+A\n@@ -9,1 +9,1 @@\n-b\n+B']],
+  ] as const) {
+    const two = await open(`two-${last}`, TWO, { first: 0, last, of: 7 })
+    const drawn = await two.findAll({ type: 'Code' })
+    expect(drawn.map(one => one.props.source)).toEqual(sources)
+    expect(await two.findAll({ type: 'Text', text: '⋮' })).toHaveLength(
+      last === 3 ? 0 : 1,
+    )
+    expect(await two.find({ key: 'float' })).toBeDefined()
+    await two.unmount()
+  }
+
+  // 從 hunk 中間切開時，兩段各自是合法的 diff
+  const diff = await open('diff', EDIT, { first: 0, last: 3, of: 5 })
+  const hunks = await diff.findAll({ type: 'Code' })
+  expect(hunks.map(one => one.props.source)).toEqual([
+    '@@ -1,1 +1,0 @@\n-const a = 1',
+    '@@ -2,0 +1,2 @@\n+const a = 2\n+const b = 3',
+  ])
+  await diff.unmount()
+
+  for (const [id, onScreen] of [
+    ['end', { first: 20, last: 41, of: 42 }],
+    ['top', { first: 0, last: 2, of: 42 }],
+    ['wrapped', { first: 0, last: 13, of: 44 }],
+    ['off', null],
+  ] as const) {
+    const whole = await open(id, LONG, onScreen)
+    expect(await whole.findAll({ type: 'Code' })).toHaveLength(1)
+    expect(await whole.find({ key: 'float' })).toBeUndefined()
+    expect(await whole.find({ key: 'fold' })).toBeDefined()
+    await whole.unmount()
+  }
+})
+
 test('Write 新檔沒有 patch 時，展開顯示檔案內容', async $ => {
   for (const surface of SURFACES) {
     const ui = await $.ui.mount({
