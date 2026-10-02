@@ -8,7 +8,7 @@ export type Hunk = {
 
 declare module 'claude-code' {
   interface PluginState {
-    'collapse-edits': {
+    'collapse-code-block': {
       isCollapsing: boolean
       isOpen: StateFamily<boolean>
     }

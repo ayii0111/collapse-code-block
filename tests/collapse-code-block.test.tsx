@@ -1,7 +1,7 @@
 import type { On } from 'claude-code'
 import { expect, test } from 'claude-code/testing'
 
-const PLUGIN = 'collapse-edits'
+const PLUGIN = 'collapse-code-block'
 
 const EDIT = {
   tool_use_id: 'toolu_edit',
@@ -242,7 +242,7 @@ test('其他工具、出錯的呼叫不接管', async ($, on) => {
   }
 })
 
-test('/collapse-edits off 之後照原樣顯示，on 之後恢復收合', async ($, on) => {
+test('/collapse-code-block off 之後照原樣顯示，on 之後恢復收合', async ($, on) => {
   engine(on)
 
   const off = await $.command.run(run('off'))

@@ -3,7 +3,7 @@ import type { Register } from 'claude-code'
 
 import type { Hunk } from '../types'
 
-const COMMAND = 'collapse-edits'
+const COMMAND = 'collapse-code-block'
 const SOURCE_LIMIT = 9000
 const LINE_LIMIT = 400
 const EXPAND = '[▸ 展開]'
@@ -12,10 +12,10 @@ const ADDED = 'green'
 const REMOVED = 'red'
 
 const isCollapsing = atom(
-  { plugin: 'collapse-edits', key: 'isCollapsing' } as const,
+  { plugin: 'collapse-code-block', key: 'isCollapsing' } as const,
   true,
 )
-const isOpen = atom({ plugin: 'collapse-edits', key: 'isOpen' } as const, false)
+const isOpen = atom({ plugin: 'collapse-code-block', key: 'isOpen' } as const, false)
 
 type Change = {
   path: string
@@ -192,8 +192,8 @@ export const register: Register = on => {
 
     return {
       text: now
-        ? 'collapse-edits：Edit/Write 的 diff 預設收合。'
-        : 'collapse-edits：已停用，Edit/Write 照原樣顯示。',
+        ? 'collapse-code-block：Edit/Write 的 diff 預設收合。'
+        : 'collapse-code-block：已停用，Edit/Write 照原樣顯示。',
     }
   })
 
