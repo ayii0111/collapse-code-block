@@ -6,6 +6,10 @@ import type { Hunk } from '../types'
 const COMMAND = 'collapse-edits'
 const SOURCE_LIMIT = 9000
 const LINE_LIMIT = 400
+const EXPAND = '[▸ 展開]'
+const COLLAPSE = '[▴ 收合]'
+const ADDED = 'green'
+const REMOVED = 'red'
 
 const isCollapsing = atom(
   { plugin: 'collapse-edits', key: 'isCollapsing' } as const,
@@ -153,16 +157,20 @@ const toDiff = (lines: Line[]) => {
   return parts.join('\n')
 }
 
+// 增減行數；新建的檔案沒有 patch，整份內容都算新增
 const summarize = (change: Change) => {
   if (change.hunks.length > 0) {
-    return `+${count(change.hunks, '+')} −${count(change.hunks, '-')} 行`
+    return {
+      added: count(change.hunks, '+'),
+      removed: count(change.hunks, '-'),
+    }
   }
 
   if (change.content !== null) {
-    return `${toLines(change.content).length} 行`
+    return { added: toLines(change.content).length, removed: null }
   }
 
-  return '無差異'
+  return null
 }
 
 export const register: Register = on => {
@@ -208,18 +216,21 @@ export const register: Register = on => {
     const summary = summarize(change)
     const { Box, Button, Code, Text } = $.ui.resolve(e)
 
+    // 只有方括號那顆 Button 可點；Button 的文字只有單色，增減數字另用 Text 上色
+    const bar = (key: string, label: string) => (
+      <Box gap={1}>
+        <Button key={key} plain label={label} onPress={toggle} />
+        {summary === null && <Text dimColor>無差異</Text>}
+        {summary !== null && <Text color={ADDED}>+{summary.added}</Text>}
+        {summary !== null && summary.removed !== null && (
+          <Text color={REMOVED}>−{summary.removed}</Text>
+        )}
+        {summary !== null && <Text dimColor>行</Text>}
+      </Box>
+    )
+
     if (!open) {
-      return (
-        <Box>
-          <Button
-            key="toggle"
-            plain
-            dimColor
-            label={`▸ ${summary}（點擊展開）`}
-            onPress={toggle}
-          />
-        </Box>
-      )
+      return bar('toggle', EXPAND)
     }
 
     const body = toBody(change)
@@ -232,13 +243,7 @@ export const register: Register = on => {
 
     return (
       <Box flexDirection="column">
-        <Button
-          key="toggle"
-          plain
-          dimColor
-          label={`▾ ${summary}（點擊收合）`}
-          onPress={toggle}
-        />
+        {bar('toggle', COLLAPSE)}
         {body.lines.length > 0 &&
           (body.isDiff ? (
             <Code
@@ -258,16 +263,10 @@ export const register: Register = on => {
         {body.omitted > 0 && (
           <Text dimColor>… 另有 {body.omitted} 行未顯示</Text>
         )}
-        <Button
-          key="fold"
-          plain
-          dimColor
-          label={`▴ ${summary}（點擊收合）`}
-          onPress={toggle}
-        />
+        {bar('fold', COLLAPSE)}
         {floatAt !== null && (
           <Box position="absolute" top={floatAt} right={0}>
-            <Button key="float" label="▴ 收合" onPress={toggle} />
+            <Button key="float" plain label={COLLAPSE} onPress={toggle} />
           </Box>
         )}
       </Box>

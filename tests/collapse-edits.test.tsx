@@ -68,16 +68,21 @@ test('Edit 的結果預設收合成一行，按下後展開 diff，再按收回'
       requestId: `${EDIT.tool_use_id}-${surface}`,
     })
 
-    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe(
-      '▸ +2 −1 行（點擊展開）',
+    // 收合行：[▸ 展開] +2（綠） −1（紅） 行，只有方括號那顆可點
+    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▸ 展開]')
+    expect((await ui.find({ type: 'Text', text: '+2' }))?.props.color).toBe(
+      'green',
     )
+    expect((await ui.find({ type: 'Text', text: '−1' }))?.props.color).toBe(
+      'red',
+    )
+    expect(await ui.find({ type: 'Text', text: '行' })).toBeDefined()
     expect(await ui.find({ type: 'Code' })).toBeUndefined()
 
     await ui.press({ key: 'toggle' })
 
-    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe(
-      '▾ +2 −1 行（點擊收合）',
-    )
+    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▴ 收合]')
+    expect((await ui.find({ key: 'fold' }))?.props.label).toBe('[▴ 收合]')
     expect((await ui.find({ type: 'Code' }))?.props).toMatchObject({
       format: 'diff',
       source: '@@ -1,1 +1,2 @@\n-const a = 1\n+const a = 2\n+const b = 3',
@@ -150,7 +155,7 @@ test('尾端被畫面截掉時收合鈕疊畫在畫面內倒數第二列，尾�
 
   const placed = async (ui: Awaited<ReturnType<typeof open>>) =>
     (await ui.findAll({ type: 'Box' })).find(
-      box => box.props.position === 'absolute',
+      box => box.props.position === 'absolute' && box.props.right === 0,
     )
 
   // 畫面最後一列是第 13 列：收合鈕疊畫在倒數第二列（第 12 列）靠右，
@@ -200,9 +205,12 @@ test('Write 新檔沒有 patch 時，展開顯示檔案內容', async $ => {
       requestId: `${WRITE.tool_use_id}-${surface}`,
     })
 
-    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe(
-      '▸ 2 行（點擊展開）',
+    // 新檔整份都算新增：只有綠色的 +2，沒有紅色的刪除數
+    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▸ 展開]')
+    expect((await ui.find({ type: 'Text', text: '+2' }))?.props.color).toBe(
+      'green',
     )
+    expect(await ui.find({ type: 'Text', text: /−/ })).toBeUndefined()
 
     await ui.press({ key: 'toggle' })
 
