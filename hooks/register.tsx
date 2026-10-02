@@ -6,8 +6,8 @@ import type { Hunk } from '../types'
 const COMMAND = 'collapse-code-block'
 const SOURCE_LIMIT = 9000
 const LINE_LIMIT = 400
-const EXPAND = '[▸ 展開]'
-const COLLAPSE = '[▴ 收合]'
+const EXPAND = '[▸ Expand]'
+const COLLAPSE = '[▴ Collapse]'
 const ADDED = 'green'
 const REMOVED = 'red'
 

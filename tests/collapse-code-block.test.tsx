@@ -68,8 +68,8 @@ test('Edit 的結果預設收合成一行，按下後展開 diff，再按收回'
       requestId: `${EDIT.tool_use_id}-${surface}`,
     })
 
-    // 收合行：[▸ 展開] +2（綠） −1（紅） 行，只有方括號那顆可點
-    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▸ 展開]')
+    // 收合行：[▸ Expand] +2（綠） −1（紅） 行，只有方括號那顆可點
+    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▸ Expand]')
     expect((await ui.find({ type: 'Text', text: '+2' }))?.props.color).toBe(
       'green',
     )
@@ -81,8 +81,8 @@ test('Edit 的結果預設收合成一行，按下後展開 diff，再按收回'
 
     await ui.press({ key: 'toggle' })
 
-    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▴ 收合]')
-    expect((await ui.find({ key: 'fold' }))?.props.label).toBe('[▴ 收合]')
+    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▴ Collapse]')
+    expect((await ui.find({ key: 'fold' }))?.props.label).toBe('[▴ Collapse]')
     expect((await ui.find({ type: 'Code' }))?.props).toMatchObject({
       format: 'diff',
       source: '@@ -1,1 +1,2 @@\n-const a = 1\n+const a = 2\n+const b = 3',
@@ -206,7 +206,7 @@ test('Write 新檔沒有 patch 時，展開顯示檔案內容', async $ => {
     })
 
     // 新檔整份都算新增：只有綠色的 +2，沒有紅色的刪除數
-    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▸ 展開]')
+    expect((await ui.find({ key: 'toggle' }))?.props.label).toBe('[▸ Expand]')
     expect((await ui.find({ type: 'Text', text: '+2' }))?.props.color).toBe(
       'green',
     )
